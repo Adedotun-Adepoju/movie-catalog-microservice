@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -19,9 +20,11 @@ import java.util.stream.Collectors;
 @RequestMapping("/catalog")
 public class MovieCatalogController {
   private final RestTemplate restTemplate;
+  private final WebClient.Builder webClientBuilder;
 
-  public MovieCatalogController(RestTemplate restTemplate) {
+  public MovieCatalogController(RestTemplate restTemplate, WebClient.Builder webClientBuilder) {
     this.restTemplate = restTemplate;
+    this.webClientBuilder = webClientBuilder;
   }
 
   @GetMapping("/{userId}")
@@ -34,7 +37,13 @@ public class MovieCatalogController {
 
     return ratings.stream().map(rating -> {
       String url = String.format("http://localhost:8082/movies/%s", rating.getMovieId());
-      Movie movie = restTemplate.getForObject(url, Movie.class);
+//      Movie movie = restTemplate.getForObject(url, Movie.class);
+      Movie movie = webClientBuilder.build()
+              .get()
+              .uri(url)
+              .retrieve() // go fetch the data from the url
+              .bodyToMono(Movie.class) // whatever body you get back, convert it into an instance of the movie class. A Mono is like a promise that you are going to get back an object in the future. It doesn't give you the actual object now, but it give you in the future
+              .block(); // the block function is what actually tells spring to wait until the Mono returns the expected value. It's more like you're making the request synchronous.
       return new CatalogItem(movie.getName(), "Text", rating.getRating());
     })
             .collect(Collectors.toList());
